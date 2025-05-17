@@ -105,7 +105,18 @@ serve(async (req) => {
     const authHeader = await createOAuth1Header("POST", url, {});
     console.log(authHeader);
 
-    for (const fixtureListing of fixtureListings) {
+    const groupedFixtureListings = fixtureListings.reduce((acc, fixtureListing) => {
+      const key = `${fixtureListing.fixture_id}-${fixtureListing.channel_country}`; // Composite key
+      acc[key] = acc[key] || [];
+      acc[key].push(fixtureListing);
+      return acc;
+    }, {});
+
+    for (const [key, items] of Object.entries(groupedFixtureListings)) {
+        console.log(`Key: ${key}`);
+        console.log('Items:', items);
+
+        const fixtureListing = items[0];
 
         const today = new Date();
         const matchDate = new Date(fixtureListing.channel_airing_date);
@@ -113,12 +124,20 @@ serve(async (req) => {
         const flagEmoji = getFlagEmoji(fixtureListing.channel_country);
         const formattedTime = formatTime(fixtureListing.channel_airing_time); // Convert time format
 
+        if (daysUntilMatch > 5 || daysUntilMatch < 1) {
+            console.log(`daysUntilMatch: ${daysUntilMatch}. Skip.`)
+            continue;
+        }
+
+        const channels = items
+           .map(item => `${item.channel_name} ${flagEmoji} (${item.channel_twitter_handle})`)
+           .join('\n');
+
         const tweet = `🚨 Only ${daysUntilMatch} days to go! 🚨\n\n` +
                       `⚽ ${fixtureListing.home_team} vs ${fixtureListing.away_team}\n\n` +
                       `📅 ${fixtureListing.channel_airing_date}\n\n` +
                       `⏰ ${fixtureListing.channel_time_zone} ${formattedTime}\n\n` +
-                      `📺 Watch it live on: ${fixtureListing.channel_name} ${flagEmoji} (${fixtureListing.channel_twitter_handle})\n\n` +
-                      `🔥 Don’t miss out! Who are you backing?`;
+                      `📺 Watch it live on: \n\n${channels}`;
 
         const res = await fetch(url, {
           method: "POST",
